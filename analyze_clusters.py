@@ -2,12 +2,6 @@
 Author: Norman Juchler
 License: GNU GPLv3
 Date: May 2021
-
-Setup:
-    python3 -m pip install -r requirements.txt
-How to run:
-    python3 count_blobs.py -h
-    python3 count_blobs.py -i ../samples -t 200
 """
 import argparse
 import cv2 as cv
