@@ -251,7 +251,7 @@ def form_clusters(neighbors):
 def form_point_clusters(centers, threshold):
     point_tree = spatial.cKDTree(centers)
     neighbors = point_tree.query_ball_point(centers, r=threshold)
-    neighbors = {i:n for i,n in enumerate(neighbors) if len(n)>1}
+    neighbors = {i:n for i,n in enumerate(neighbors)}
     neighbors = form_clusters(neighbors)
     return neighbors
 
