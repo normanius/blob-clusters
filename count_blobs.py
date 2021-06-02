@@ -71,6 +71,7 @@ def save_figure(path, fig=None, **kwargs):
     plt.savefig(path,
                 transparent=transparent,
                 bbox_inches="tight",
+                pad_inches=0.0,
                 dpi=dpi,
                 **kwargs)
     return path
@@ -260,18 +261,48 @@ def count_events(centers, neighbors):
     cluster_sizes = pd.Series([len(n) for n in clusters], dtype=int)
     counts = cluster_sizes.value_counts(sort=False)
     sizes = counts.index
-    rel_counts = counts * sizes / len(centers)
-    counts = pd.concat([counts, rel_counts], axis=1,
-                       keys=["count", "rel_count"])
-    print("Total number of blobs: %4d" % len(centers))
+    counts.index.name = "cluster_size"
+    counts_blobs_rel = counts * sizes / len(centers)
+    counts_clusters_rel = counts / sum(counts)
+    counts = pd.concat([counts, counts_clusters_rel, counts_blobs_rel], axis=1,
+                       keys=["count", "count_clusters_rel", "count_blobs_rel"])
+    return counts
+
+
+def print_counts(counts, centers, indent=4):
+    indent = " "*indent
+    def _print(msg=""):
+        print(indent+msg)
+    _print("Total number of blobs: %4d" % len(centers))
+    _print("Formula for freq: count/total_clusters")
     if counts.empty:
         return
     for n, row in counts.iterrows():
         msg = "Number of %d-clusters: %5d (freq: %.3f)"
-        print(msg % (n, row["count"], row["rel_count"]))
-    print()
-    print("Formula for freq: count*cluster_size/total_blobs")
-    return counts
+        _print(msg % (n, row["count"], row["count_clusters_rel"]))
+        #print(msg % (n, row["count"], row["count_blobs_rel"]))
+    _print()
+    #print("Formula for freq: count*cluster_size/total_blobs")
+
+
+def format_count_data(cluster_counts, blob_counts):
+    def _merge(df):
+        ret = df.loc[:2].copy()
+        ret.loc[">=3"] = df.loc[3:].sum(axis=0)
+        return ret
+    cluster_counts = {did: _merge(df) for did, df in cluster_counts.items()}
+    data = pd.concat(cluster_counts.values(), keys=cluster_counts.keys())
+    data.index.names = ["dataset_id", "cluster_size"]
+    data = data.reset_index()
+    data = data.pivot(index="dataset_id", columns="cluster_size",
+                      values=["count", "count_clusters_rel", "count_blobs_rel"])
+    data.columns.names = ["metric", "cluster_size"]
+    data["blobs_counts"] = blob_counts.values()
+    data = data.rename({"count": "cluster_counts",
+                        "count_clusters_rel": "cluster_counts_rel"},
+                       level=0, axis=1)
+    data["cluster_counts"] = data["cluster_counts"].astype(int)
+    return data
 
 
 def colorize_clusters(blobs, clusters, neighbors, center_cids):
@@ -283,7 +314,7 @@ def colorize_clusters(blobs, clusters, neighbors, center_cids):
     the cluster sizes with the colors assigned in CLUSTER_COLORS (lookup 2).
     Note that the neighbors container uses the indices of the blob centers
     as read from the blob centers file. To convert those to cluster ids,
-    we need to apply yet another lookup (lookup 3)
+    we need to apply yet another lookup (lookup 3).
     """
     # Extract outlines of the blobs.
     edges = cv.Canny(blobs, 0, 0)
@@ -319,8 +350,7 @@ def colorize_clusters(blobs, clusters, neighbors, center_cids):
 
 
 def visualize_neighbors(image_path, centers, neighbors):
-
-    # Radius of circular patch: relative to image diagonal
+    # Radius of circular patch: relative to image diagonal.
     RADIUS = 0.005
     img = mpimg.imread(image_path)
     img = rgb2gray(img)
@@ -335,7 +365,7 @@ def visualize_neighbors(image_path, centers, neighbors):
         if len(points)<=1:
             continue
         if False:
-            # Connect neighbors by a line
+            # Connect neighbors by a line.
             if len(points)>2:
                 hull = spatial.ConvexHull(points.values)
                 ax.plot(points.values[hull.vertices,0],
@@ -350,7 +380,7 @@ def visualize_neighbors(image_path, centers, neighbors):
                    for x,y in points.values]
         c = mpc.PatchCollection(circles, match_original=True)
         ax.add_collection(c)
-        ax.axis(False)
+    ax.axis(False)
     return fig
 
 
@@ -366,10 +396,12 @@ def run(args):
         print("Error: No datasets to process.")
         exit(1)
 
+    cluster_counts = {}
+    blob_counts = {}
     for i, dataset_id in enumerate(dataset_ids):
         print("Processing %d/%d (%s)" % (i+1, len(dataset_ids), dataset_id))
 
-        ##### Analyze clusters
+        ##### Analyze clusters.
         centers = read_centers(data_dir=data_dir,
                                dataset_id=dataset_id)
         if mode=="centers":
@@ -386,37 +418,50 @@ def run(args):
             neighbors, clusters, center_cids = ret
 
         counts = count_events(centers=centers, neighbors=neighbors)
-        print(counts)
         if counts is None:
             print("No clusters found (thr=%.1f)!" % threshold)
+        cluster_counts[dataset_id] = counts
+        blob_counts[dataset_id] = len(centers)
 
-        ##### Visualize data
+        ##### Visualize data.
         clusters_colored = None
-        if mode=="contours":
+        if mode=="contours" and out_level>=2:
             clusters_colored = colorize_clusters(blobs=blobs,
                                                  clusters=clusters,
                                                  neighbors=neighbors,
                                                  center_cids=center_cids)
-        background_path = ensure_data_path(data_dir=data_dir,
-                                           dataset_id=dataset_id,
-                                           suffix=BACKGROUND_SUFFIX)
-        fig = visualize_neighbors(image_path=background_path,
-                                  centers=centers,
-                                  neighbors=neighbors)
+        fig = None
+        if mode=="centers" and out_level>=2:
+            background_path = ensure_data_path(data_dir=data_dir,
+                                               dataset_id=dataset_id,
+                                               suffix=BACKGROUND_SUFFIX)
+            fig = visualize_neighbors(image_path=background_path,
+                                      centers=centers,
+                                      neighbors=neighbors)
 
-        ##### Write data
-        if out_level > 0:
+        ##### Write data.
+        if out_level >= 0:
+            print_counts(counts=counts, centers=centers)
+        if out_level >= 1:
             ensure_dir(out_dir)
+            counts.to_csv(out_dir/(dataset_id+"_counts.csv"),
+                          float_format="%.4f")
         if out_level >= 2:
             if clusters_colored is not None:
                 cv.imwrite(filename=str(out_dir/(dataset_id+"_clusters.png")),
                            img=clusters_colored)
-            save_figure(path=out_dir/(dataset_id+".pdf"), fig=fig, dpi=600)
-            save_figure(path=out_dir/(dataset_id+".png"), fig=fig, dpi=1200)
+            if fig is not None:
+                save_figure(path=out_dir/(dataset_id+".pdf"), fig=fig, dpi=600)
+                #save_figure(path=out_dir/(dataset_id+".png"), fig=fig, dpi=1200)
 
         if show:
             plt.show()
         plt.close(fig)
+
+    data = format_count_data(cluster_counts=cluster_counts,
+                             blob_counts=blob_counts)
+    if out_level >= 1:
+        data.to_csv(out_dir/"_summary.csv", float_format="%.4f")
 
 
 def parse_args():
