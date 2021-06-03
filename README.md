@@ -2,7 +2,7 @@
 
 Utility to analyze blobs in a 2D image. 
 
-**Problem statement**: Given the extraction of blobs and a distance threshold $d$, form clusters of blobs that lie within distance $d$ and compute their sizes/frequencies.
+**Problem statement**: Given the blobs of a 2D segmentation and a distance threshold $d$. Form clusters of blobs that are within a distance $d$ to each other, and calculate the cluster sizes and the frequency with which clusters of a certain size occur.
 
 Two modes of operation are available:
 

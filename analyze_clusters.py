@@ -180,11 +180,15 @@ def form_blob_clusters(blobs, centers, threshold):
                              maxval=255,
                              type=cv.THRESH_BINARY_INV)
     merged = merged.astype(np.uint8)
+
     # Create labels for connected components.
     # cluster_ids is a 2D array with dtype int32.
     n_clusters, cluster_ids = cv.connectedComponents(merged)
     assert(cluster_ids.shape[0] == blobs.shape[0])
     assert(cluster_ids.shape[1] == blobs.shape[1])
+
+    # write_details(dist=dist, blobs=mask, merged=merged,
+    #               centers=centers, labels=cluster_ids)
 
     # For the list of centroids, check if the points lie within a blob.
     # In case they don't, throw a warning and pick the closest blob (after
