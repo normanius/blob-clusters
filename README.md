@@ -37,7 +37,7 @@ python analyze_clusters.py \
        --in-dir "$DATA_DIR" \
        --out-dir "./output" \
        --mode="centers" \
-       --threshold=70
+       --threshold=80
        
 # Run the script in contour mode
 python analyze_clusters.py \
@@ -53,15 +53,15 @@ python analyze_clusters.py --help
 
 ## Samples
 
-Input image:
+Input image showing blobs colorized blobs. A corresponding [.csv file](https://github.com/normanius/blob-clusters/blob/main/data/sample_Centers.csv) with columns "Location\_Center\_X" and "Location\_Center\_Y" indicates the blob centers. 
 
-![Input image](https://github.com/normanius/blob-clusters/blob/main/data/sample_Objects.tiff)
+![Input image](https://github.com/normanius/blob-clusters/blob/main/data/sample_Objects.tiff?raw=true)
 
 
-Result using contours mode:
+Visualization of the result using the contours mode:
 
-![Input image](https://github.com/normanius/blob-clusters/blob/main/data/results/contours/sample_clusters_resized.png)
+![Input image](https://github.com/normanius/blob-clusters/blob/main/data/results/contours/sample_clusters_resized.png?raw=true)
 
-Result using centers mode:
+Visualization of the result using the centers mode:
 
-![Input image](https://github.com/normanius/blob-clusters/blob/main/data/results/centers/sample_300dpi.png)
+![Input image](https://github.com/normanius/blob-clusters/blob/main/data/results/centers/sample.png?raw=true)
