@@ -72,6 +72,14 @@ def save_figure(path, fig=None, **kwargs):
     return path
 
 
+def resize_image(img, scale):
+    new_dim = np.round(np.array(img.shape[:2])/scale)
+    img_resized = cv.resize(src=img,
+                            dsize=tuple(new_dim.astype(int)),
+                            interpolation=cv.INTER_NEAREST)
+    return img_resized
+
+
 def search_datasets(data_dir):
     datasets = defaultdict(list)
     for suffix in REQUIRED_SUFFIXES:
@@ -457,11 +465,16 @@ def run(args):
                           float_format="%.4f")
         if out_level >= 2:
             if clusters_colored is not None:
-                cv.imwrite(filename=str(out_dir/(dataset_id+"_clusters.png")),
+                file_path = out_dir/(dataset_id+"_clusters.png")
+                cv.imwrite(filename=str(file_path),
                            img=clusters_colored)
+                # img_resized = resize_image(img=clusters_colored, scale=2)
+                # file_path = out_dir/(dataset_id+"_clusters_resized.png")
+                # cv.imwrite(filename=str(file_path),
+                #            img=img_resized)
             if fig is not None:
                 save_figure(path=out_dir/(dataset_id+".pdf"), fig=fig, dpi=600)
-                #save_figure(path=out_dir/(dataset_id+".png"), fig=fig, dpi=1200)
+                #save_figure(path=out_dir/(dataset_id+".png"), fig=fig, dpi=300)
 
         if show:
             plt.show()
