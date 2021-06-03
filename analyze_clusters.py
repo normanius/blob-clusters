@@ -16,6 +16,7 @@ from collections import defaultdict
 from functools import reduce
 from operator import or_
 
+
 CENTER_SUFFIX="_Centers.csv"
 ORIGINAL_SUFFIX="_OrigImage.tif"
 SEGMENTATION_SUFFIX="_Objects.tiff"
@@ -267,8 +268,8 @@ def print_counts(counts, centers, indent=4):
     indent = " "*indent
     def _print(msg=""):
         print(indent+msg)
-    _print("Total number of blobs: %4d" % len(centers))
     _print("Formula for freq: count/total_clusters")
+    _print("Total number of blobs: %4d" % len(centers))
     if counts.empty:
         return
     for n, row in counts.iterrows():
@@ -295,7 +296,10 @@ def format_count_data(cluster_counts, blob_counts):
     data = data.rename({"count": "cluster_counts",
                         "count_clusters_rel": "cluster_counts_rel"},
                        level=0, axis=1)
-    data["cluster_counts"] = data["cluster_counts"].astype(int)
+    try:
+        data["cluster_counts"] = data["cluster_counts"].astype(int)
+    except ValueError:
+        pass
     return data
 
 
@@ -325,10 +329,21 @@ def colorize_clusters(blobs, clusters, neighbors, center_cids):
     cluster_sizes = {center_cids[i]: len(n) for i, n in neighbors.items()}
     cluster_sizes[0] = 0
     cluster_sizes = dict(sorted(cluster_sizes.items()))  # Sort by keys.
-    # Lookup  2.
-    cluster_colmap = [colors.get(n, colors["default"]) for n in cluster_sizes.values()]
+    # Lookup 2.
+    cluster_colmap = [colors.get(n, colors["default"])
+                      for n in cluster_sizes.values()]
     cluster_colmap = np.array(cluster_colmap, dtype=np.uint8)
-    clusters_color = cv.merge(tuple(cmap[clusters] for cmap in cluster_colmap.T))
+    if clusters.max()>=len(cluster_colmap):
+        # This may occur if blobs are present in the blob image for which
+        # no corresponding center point exists. Let's mark that blob with
+        # a special color.
+        print("Warning: Extending the colormap by additional row(s).")
+        alert_color = [255, 0, 255]     # magenta (BGR)
+        n_rows_to_add = clusters.max()+1-len(cluster_colmap)
+        new_rows = np.repeat([alert_color], n_rows_to_add, axis=0)
+        cluster_colmap = np.vstack([cluster_colmap, new_rows])
+    clusters_color = tuple(cmap[clusters] for cmap in cluster_colmap.T)
+    clusters_color = cv.merge(clusters_color)
     # Apply mask of segmented blobs.
     blobs_color = cv.bitwise_and(clusters_color, clusters_color,
                                  mask=blobs)
@@ -343,37 +358,36 @@ def colorize_clusters(blobs, clusters, neighbors, center_cids):
     return overlay
 
 
-def visualize_neighbors(image_path, centers, neighbors):
-    # Radius of circular patch: relative to image diagonal.
-    RADIUS = 0.005
-    img = mpimg.imread(image_path)
-    img = rgb2gray(img)
+def visualize_neighbors(image_path, centers, neighbors, radius):
+    img = cv.imread(str(image_path), cv.IMREAD_GRAYSCALE)
     colors = CLUSTER_COLORS
     fig, ax = plt.subplots()
     ax.imshow(img, cmap=plt.get_cmap("gray"), vmin=0, vmax=255)
-    r = RADIUS*np.linalg.norm(img.shape)
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
     clusters = set(map(tuple,neighbors.values()))
     for ids in clusters:
         points = centers.iloc[list(ids)]
         color = colors.get(len(ids), colors["default"])
         if len(points)<=1:
             continue
-        if False:
+        if True:
             # Connect neighbors by a line.
             if len(points)>2:
                 hull = spatial.ConvexHull(points.values)
                 ax.plot(points.values[hull.vertices,0],
                         points.values[hull.vertices,1],
                         linestyle="-", color=color,
-                        marker=None, alpha=0.5)
+                        marker=None, alpha=0.8)
             else:
                 ax.plot(points["x"], points["y"],
                         color=color, marker=None, linestyle="-")
-        circles = [plt.Circle((x,y), radius=r, linewidth=0,
-                              facecolor=color, alpha=0.5)
+        circles = [plt.Circle((x,y), radius=radius, linewidth=0,
+                              facecolor=color, alpha=0.7)
                    for x,y in points.values]
         c = mpc.PatchCollection(circles, match_original=True)
         ax.add_collection(c)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     ax.axis(False)
     return fig
 
@@ -387,7 +401,7 @@ def run(args):
     mode = args.mode
     dataset_ids = search_datasets(data_dir=data_dir)
     if not dataset_ids:
-        print("Error: No datasets to process.")
+        print("Error: No datasets found to process in: %s" % data_dir)
         exit(1)
 
     cluster_counts = {}
@@ -431,7 +445,8 @@ def run(args):
                                                suffix=BACKGROUND_SUFFIX)
             fig = visualize_neighbors(image_path=background_path,
                                       centers=centers,
-                                      neighbors=neighbors)
+                                      neighbors=neighbors,
+                                      radius=threshold/2)
 
         ##### Write data.
         if out_level >= 0:
