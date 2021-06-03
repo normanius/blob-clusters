@@ -1,0 +1,5 @@
+python analyze_clusters.py \
+       --in-dir "./data" \
+       --out-dir "./output" \
+       --mode="centers" \
+       --threshold=80

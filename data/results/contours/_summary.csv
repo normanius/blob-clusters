@@ -1,0 +1,4 @@
+metric,cluster_counts,cluster_counts,cluster_counts,cluster_counts_rel,cluster_counts_rel,cluster_counts_rel,count_blobs_rel,count_blobs_rel,count_blobs_rel,blobs_counts
+cluster_size,1,2,>=3,1,2,>=3,1,2,>=3,
+dataset_id,,,,,,,,,,
+sample,48,14,6,0.7059,0.2059,0.0882,0.4898,0.2857,0.2245,98
